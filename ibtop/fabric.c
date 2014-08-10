@@ -91,15 +91,17 @@ static void update_perfcounters(struct ibtop_node *node,
 	                            srcport)))
 		goto fail;
 
-	node->tx_pc[0].bytes = node->tx_pc[1].bytes;
-	node->tx_pc[0].pkts  = node->tx_pc[1].pkts;
-	node->rx_pc[0].bytes = node->rx_pc[1].bytes;
-	node->rx_pc[0].pkts  = node->rx_pc[1].pkts;
+	node->tx_pc[0].bits = node->tx_pc[1].bits;
+	node->tx_pc[0].pkts = node->tx_pc[1].pkts;
+	node->rx_pc[0].bits = node->rx_pc[1].bits;
+	node->rx_pc[0].pkts = node->rx_pc[1].pkts;
 
-	node->tx_pc[1].bytes = mad_get_field64(pc, 0, IB_PC_EXT_XMT_BYTES_F);
-	node->tx_pc[1].pkts  = mad_get_field64(pc, 0, IB_PC_EXT_XMT_PKTS_F);
-	node->rx_pc[1].bytes = mad_get_field64(pc, 0, IB_PC_EXT_RCV_BYTES_F);
-	node->rx_pc[1].pkts  = mad_get_field64(pc, 0, IB_PC_EXT_RCV_PKTS_F);
+	/* Multiply by four to get bytes (see man perfquery) and then times eight
+	 * to convert to bits. */
+	node->tx_pc[1].bits = mad_get_field64(pc, 0, IB_PC_EXT_XMT_BYTES_F) * 32;
+	node->tx_pc[1].pkts = mad_get_field64(pc, 0, IB_PC_EXT_XMT_PKTS_F);
+	node->rx_pc[1].bits = mad_get_field64(pc, 0, IB_PC_EXT_RCV_BYTES_F) * 32;
+	node->rx_pc[1].pkts = mad_get_field64(pc, 0, IB_PC_EXT_RCV_PKTS_F);
 
 success:
 	node->fails = 0;
@@ -127,8 +129,11 @@ static void compute_bandwidth(struct ibtop_node *node,
 {
 	const double delay = ts->tv_sec + 1e-9*ts->tv_nsec;
 
-	node->tx_bw = (node->tx_pc[1].bytes - node->tx_pc[0].bytes)/delay;
-	node->rx_bw = (node->rx_pc[1].bytes - node->rx_pc[0].bytes)/delay;
+	const long long tx = node->tx_pc[1].bits - node->tx_pc[0].bits;
+	const long long rx = node->rx_pc[1].bits - node->rx_pc[0].bits;
+
+	node->tx_bw = tx / (1000 * 1000L * delay);
+	node->rx_bw = rx / (1000 * 1000L * delay);
 }
 
 int ibtop_fabric_compute_bandwidth(struct ibtop_fabric *f,

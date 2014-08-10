@@ -10,7 +10,7 @@
 
 
 struct ibtop_perfcounter {
-	unsigned long long		bytes;
+	unsigned long long		bits;
 	unsigned long long		pkts;
 };
 
