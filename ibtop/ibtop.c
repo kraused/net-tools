@@ -27,7 +27,7 @@ void print(struct ibtop_fabric* f)
 		if (unlikely(f->sorted[i]->fails))
 			continue;
 
-		mvprintw(y++, 0, "    %-20s\t%-10g (%6.2f)\t%-10g (%6.2f)\n",
+		mvprintw(y++, 0, "    %-20s\t|\t%-10g Mbps (%6.2f%%)\t|\t%-10g Mbps (%6.2f%%)\n",
 		         f->sorted[i]->node->nodedesc,
 		         f->sorted[i]->rx_bw,
 		         f->sorted[i]->rx_bw * ONE_OVER_FDR_SPEED * 100,
