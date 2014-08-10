@@ -3,6 +3,7 @@
 #include "fabric.h"
 
 #include <time.h>
+#include <math.h>
 #include <curses.h>
 
 #include <infiniband/mad.h>
@@ -18,8 +19,10 @@ struct ibmad_port *open_mad_port()
 
 void print(struct ibtop_fabric* f)
 {
-	int i;
+	int i, j;
 	int y = 1;
+	char tx[31], rx[31];
+	long ptx, prx;
 
 #define ONE_OVER_FDR_SPEED	66/(14*64*4*1000L)
 
@@ -27,12 +30,21 @@ void print(struct ibtop_fabric* f)
 		if (unlikely(f->sorted[i]->fails))
 			continue;
 
-		mvprintw(y++, 0, "    %-20s\t|\t%10.2f Mbps (%6.2f%%)\t|\t%10.2f Mbps (%6.2f%%)\n",
+		ptx = MIN(3 * 10, 3 * lround(f->sorted[i]->tx_bw * ONE_OVER_FDR_SPEED * 100));
+		prx = MIN(3 * 10, 3 * lround(f->sorted[i]->rx_bw * ONE_OVER_FDR_SPEED * 100));
+
+		for (j = 0; j < ptx; ++j)
+			tx[j] = '|';
+		tx[ptx] = 0;
+
+		for (j = 0; j < prx; ++j)
+			rx[j] = '|';
+		rx[prx] = 0;
+
+		mvprintw(y++, 0, "  %-20s\t%10.2f Mbps\t%35s|%-35s\t%10.2f Mbps",
 		         f->sorted[i]->node->nodedesc,
-		         f->sorted[i]->rx_bw,
-		         f->sorted[i]->rx_bw * ONE_OVER_FDR_SPEED * 100,
-		         f->sorted[i]->tx_bw,
-		         f->sorted[i]->tx_bw * ONE_OVER_FDR_SPEED * 100);
+		         f->sorted[i]->rx_bw, rx,
+		         f->sorted[i]->tx_bw, tx);
 	}
 
 	move(1, 0);
