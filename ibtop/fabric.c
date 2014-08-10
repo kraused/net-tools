@@ -17,7 +17,7 @@ static void copy(ibnd_node_t *node, void *udata)
 
 	if (IB_NODE_CA == node->type) {
 		(*x)->node = node;
-		++(*x);		
+		++(*x);
 	}
 }
 
@@ -34,6 +34,14 @@ static int count_nodes_in_fabric(ibnd_fabric_t *f)
 static void copy_node_pointers(ibnd_fabric_t *f, struct ibtop_node *node)
 {
 	ibnd_iter_nodes(f, copy, &node);
+}
+
+static void fill_sorted(struct ibtop_fabric *f)
+{
+	int i;
+
+	for (i = 0; i < f->nnodes; ++i)
+		f->sorted[i] = &f->nodes[i];
 }
 
 int ibtop_fabric_discover(struct ibtop_fabric *f)
@@ -55,6 +63,12 @@ int ibtop_fabric_discover(struct ibtop_fabric *f)
 	memset(f->nodes, 0, f->nnodes*sizeof(struct ibtop_node));
 	copy_node_pointers(f->ndf, f->nodes);
 
+	f->sorted = malloc(f->nnodes*sizeof(struct ibtop_node *));
+	if (unlikely(!f->sorted))
+		goto fail;
+
+	fill_sorted(f);
+
 	return 0;
 
 fail:
@@ -68,16 +82,17 @@ int ibtop_fabric_destroy(struct ibtop_fabric *f)
 		ibnd_destroy_fabric(f->ndf);
 	if (likely(f->nodes))
 		free(f->nodes);
+	if (likely(f->sorted))
+		free(f->sorted);
 
 	return 0;
 }
 
-static void update_perfcounters(struct ibtop_node *node, 
+static void update_perfcounters(struct ibtop_node *node,
                                 struct ibmad_port *srcport,
                                 const int timeout)
 {
 	unsigned char pc[1024];
-	int lid;
 	ib_portid_t portid = {0};
 
 	if (unlikely(!node->node->ports[1]))
@@ -103,16 +118,15 @@ static void update_perfcounters(struct ibtop_node *node,
 	node->rx_pc[1].bits = mad_get_field64(pc, 0, IB_PC_EXT_RCV_BYTES_F) * 32;
 	node->rx_pc[1].pkts = mad_get_field64(pc, 0, IB_PC_EXT_RCV_PKTS_F);
 
-success:
 	node->fails = 0;
 	return;
 
 fail:
 	++node->fails;
-	return;	
+	return;
 }
 
-int ibtop_fabric_update_perfcounters(struct ibtop_fabric *f, 
+int ibtop_fabric_update_perfcounters(struct ibtop_fabric *f,
                                      struct ibmad_port *srcport,
                                      const int timeout)
 {
@@ -143,6 +157,30 @@ int ibtop_fabric_compute_bandwidth(struct ibtop_fabric *f,
 
 	for (i = 0; i < f->nnodes; ++i)
 		compute_bandwidth(&f->nodes[i], ts);
+
+	return 0;
+}
+
+int compare_bandwidth_descending(const void *x1, const void *x2)
+{
+	const struct ibtop_node *node1 = *(const struct ibtop_node **)x1;
+	const struct ibtop_node *node2 = *(const struct ibtop_node **)x2;
+
+	const double tmp1 = MAX(node1->tx_bw, node1->rx_bw);
+	const double tmp2 = MAX(node2->tx_bw, node2->rx_bw);
+
+	if (tmp1 > tmp2)
+		return -1;
+	if (tmp1 < tmp2)
+		return  1;
+
+	return 0;
+}
+
+int ibtop_fabric_sort_by_bandwidth_descending(struct ibtop_fabric *f)
+{
+	qsort(f->sorted, f->nnodes, sizeof(struct ibtop_node *),
+	      compare_bandwidth_descending);
 
 	return 0;
 }

@@ -12,7 +12,7 @@ struct ibmad_port *open_mad_port()
 {
 	int classes[1] = {IB_PERFORMANCE_CLASS};
 
-	return mad_rpc_open_port(NULL, 0, classes, 
+	return mad_rpc_open_port(NULL, 0, classes,
 	                         sizeof(classes)/sizeof(classes[0]));
 }
 
@@ -24,30 +24,37 @@ void print(struct ibtop_fabric* f)
 #define ONE_OVER_FDR_SPEED	66/(14*64*4*1000L)
 
 	for (i = 0; i < f->nnodes; ++i) {
-		if (unlikely(f->nodes[i].fails))
+		if (unlikely(f->sorted[i]->fails))
 			continue;
 
-		mvprintw(y++, 0, "    %-20s\t%-10g (%6.2f)\t%-10g (%6.2f)\n", 
-		         f->nodes[i].node->nodedesc,
-		         f->nodes[i].rx_bw,
-		         f->nodes[i].rx_bw * ONE_OVER_FDR_SPEED * 100,
-		         f->nodes[i].tx_bw,
-		         f->nodes[i].tx_bw * ONE_OVER_FDR_SPEED * 100);
+		mvprintw(y++, 0, "    %-20s\t%-10g (%6.2f)\t%-10g (%6.2f)\n",
+		         f->sorted[i]->node->nodedesc,
+		         f->sorted[i]->rx_bw,
+		         f->sorted[i]->rx_bw * ONE_OVER_FDR_SPEED * 100,
+		         f->sorted[i]->tx_bw,
+		         f->sorted[i]->tx_bw * ONE_OVER_FDR_SPEED * 100);
 	}
 
 	move(1, 0);
         refresh();
 }
 
-static int loop(struct ibtop_fabric* f, 
-                struct ibmad_port *srcport, 
+static int loop(struct ibtop_fabric* f,
+                struct ibmad_port *srcport,
                 struct timespec *ts)
 {
 	int ch;
+	int sort = 0;	/* Initialize with zero so that we sort the first
+	                 * time we execute the loop body. */
 
 	do {
 		ibtop_fabric_update_perfcounters(f, srcport, 1000);
 		ibtop_fabric_compute_bandwidth(f, ts);
+
+		if (!(sort--)) {
+			ibtop_fabric_sort_by_bandwidth_descending(f);
+			sort = 10; /* TODO Make this configurable */
+		}
 
 		print(f);
 

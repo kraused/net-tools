@@ -29,6 +29,7 @@ struct ibtop_fabric {
 	ibnd_fabric_t			*ndf;
 	int				nnodes;
 	struct ibtop_node		*nodes;
+	struct ibtop_node		**sorted;
 };
 
 
@@ -54,6 +55,11 @@ int ibtop_fabric_update_perfcounters(struct ibtop_fabric *f,
  */
 int ibtop_fabric_compute_bandwidth(struct ibtop_fabric *f,
                                    const struct timespec *ts);
+
+/*
+ * Sort nodes by bandwidth in descending order.
+ */
+int ibtop_fabric_sort_by_bandwidth_descending(struct ibtop_fabric *f);
 
 #endif
 
