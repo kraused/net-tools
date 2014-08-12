@@ -161,8 +161,16 @@ static void compute_bandwidth(struct ibtop_node *node,
 	const long long tx = node->tx_pc[1].bits - node->tx_pc[0].bits;
 	const long long rx = node->rx_pc[1].bits - node->rx_pc[0].bits;
 
-	node->tx_bw = tx / (1000 * 1000L * delay);
-	node->rx_bw = rx / (1000 * 1000L * delay);
+	if (unlikely((tx < 0) || (rx < 0)))
+		node->overflow = 1;
+
+	if (unlikely(node->fails || node->overflow)) {
+		node->tx_bw = 0;
+		node->rx_bw = 0;
+	} else {
+		node->tx_bw = tx / (1000 * 1000L * delay);
+		node->rx_bw = rx / (1000 * 1000L * delay);
+	}
 }
 
 int ibtop_fabric_compute_bandwidth(struct ibtop_fabric *f,
@@ -183,6 +191,9 @@ int compare_bandwidth_descending(const void *x1, const void *x2)
 
 	const double tmp1 = MAX(node1->tx_bw, node1->rx_bw);
 	const double tmp2 = MAX(node2->tx_bw, node2->rx_bw);
+
+	if (unlikely(node1->fails || node1->overflow))
+		return  1;
 
 	if (tmp1 > tmp2)
 		return -1;

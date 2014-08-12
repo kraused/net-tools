@@ -20,6 +20,7 @@ struct ibtop_node {
 	/* Number of failures of MAD rpcs to the node
 	 * since the last success. */
 	int				fails;
+	int				overflow;
 	struct ibtop_perfcounter	rx_pc[2];
 	/* Bandwidth in Mbps */
 	double				rx_bw;
