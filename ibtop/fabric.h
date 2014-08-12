@@ -16,12 +16,15 @@ struct ibtop_perfcounter {
 
 struct ibtop_node {
 	ibnd_node_t			*node;
+	char				name[16];
 	/* Number of failures of MAD rpcs to the node
 	 * since the last success. */
 	int				fails;
 	struct ibtop_perfcounter	rx_pc[2];
+	/* Bandwidth in Mbps */
 	double				rx_bw;
 	struct ibtop_perfcounter	tx_pc[2];
+	/* Bandwidth in Mbps */
 	double				tx_bw;
 };
 

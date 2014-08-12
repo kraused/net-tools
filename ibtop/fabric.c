@@ -36,6 +36,20 @@ static void copy_node_pointers(ibnd_fabric_t *f, struct ibtop_node *node)
 	ibnd_iter_nodes(f, copy, &node);
 }
 
+static void fill_node_names(struct ibtop_node *nodes, int nnodes)
+{
+	int i, j, n;
+
+	for (i = 0; i < nnodes; ++i) {
+		j = 0;
+		n = MIN(sizeof(nodes[i].name) - 1, strlen(nodes[i].node->nodedesc));
+
+		for(; (j < n) && (' ' != nodes[i].node->nodedesc[j]); ++j)
+			nodes[i].name[j] = nodes[i].node->nodedesc[j];
+		nodes[i].name[j] = 0;
+	}
+}
+
 static void fill_sorted(struct ibtop_fabric *f)
 {
 	int i;
@@ -62,6 +76,7 @@ int ibtop_fabric_discover(struct ibtop_fabric *f)
 
 	memset(f->nodes, 0, f->nnodes*sizeof(struct ibtop_node));
 	copy_node_pointers(f->ndf, f->nodes);
+	fill_node_names(f->nodes, f->nnodes);
 
 	f->sorted = malloc(f->nnodes*sizeof(struct ibtop_node *));
 	if (unlikely(!f->sorted))
