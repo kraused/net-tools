@@ -20,18 +20,17 @@ struct ibmad_port *open_mad_port()
 void print(struct ibtop_fabric* f)
 {
 	int i, j;
-	int y = 1;
+	int x, y = 1;
+	char line[120];
+	long len;
 	char tx[31], rx[31];
 	long ptx, prx;
 
 #define ONE_OVER_FDR_SPEED	66/(14*64*4*1000L)
 
 	for (i = 0; i < f->nnodes; ++i) {
-		if (unlikely(f->sorted[i]->fails))
-			continue;
-
-		ptx = MIN(3 * 10, 3 * lround(f->sorted[i]->tx_bw * ONE_OVER_FDR_SPEED * 100));
-		prx = MIN(3 * 10, 3 * lround(f->sorted[i]->rx_bw * ONE_OVER_FDR_SPEED * 100));
+		ptx = MAX(0, MIN(100, lround(f->sorted[i]->tx_bw * ONE_OVER_FDR_SPEED * 100))) * 3 / 10;
+		prx = MAX(0, MIN(100, lround(f->sorted[i]->rx_bw * ONE_OVER_FDR_SPEED * 100))) * 3 / 10;
 
 		for (j = 0; j < ptx; ++j)
 			tx[j] = '|';
@@ -41,10 +40,57 @@ void print(struct ibtop_fabric* f)
 			rx[j] = '|';
 		rx[prx] = 0;
 
-		mvprintw(y++, 0, "  %-20s\t%10.2f Mbps\t%35s|%-35s\t%10.2f Mbps",
-		         f->sorted[i]->node->nodedesc,
-		         f->sorted[i]->rx_bw, rx,
-		         f->sorted[i]->tx_bw, tx);
+		x   = 0;
+
+		len = snprintf(line, sizeof(line), "  %-16s", f->sorted[i]->name);
+
+		mvaddstr(y, x, line);
+		x += len;
+
+		len = snprintf(line, sizeof(line), "%10.2f Mbps", f->sorted[i]->rx_bw);
+
+		mvaddstr(y, x, line);
+		x += len;
+
+		len = snprintf(line, sizeof(line), "%.2f%% %s", f->sorted[i]->rx_bw * ONE_OVER_FDR_SPEED * 100, rx);
+
+		for (j = 0; j < (40 - len); ++j) {
+			mvaddch(y, x, ' ');
+			x += 1;
+		}
+
+		attron(COLOR_PAIR(1));
+
+		mvaddstr(y, x, line);
+		x += len;
+
+		attroff(COLOR_PAIR(1));
+
+		len = snprintf(line, sizeof(line), "|");
+
+		mvaddstr(y, x, line);
+		x += len;
+
+		len = snprintf(line, sizeof(line), "%s %.2f%%", tx, f->sorted[i]->tx_bw * ONE_OVER_FDR_SPEED * 100);
+
+		attron(COLOR_PAIR(2));
+
+		mvaddstr(y, x, line);
+		x += len;
+
+		attroff(COLOR_PAIR(1));
+
+		for (j = 0; j < (40 - len); ++j) {
+			mvaddch(y, x, ' ');
+			x += 1;
+		}
+
+		len = snprintf(line, sizeof(line), "%10.2f Mbps", f->sorted[i]->tx_bw);
+
+		mvaddstr(y, x, line);
+		x += len;
+
+		y += 1;
 	}
 
 	move(1, 0);
@@ -104,6 +150,12 @@ int main(int argc, char **argv)
 	nanosleep(&ts, 0);
 
 	initscr();
+	start_color();
+
+	use_default_colors();
+
+	init_pair(1, COLOR_RED , -1);
+	init_pair(2, COLOR_BLUE, -1);
 
 	ret = loop(&f, srcport, &ts);
 
