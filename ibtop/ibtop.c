@@ -21,12 +21,20 @@ void print(struct ibtop_fabric* f)
 {
 	int i, j;
 	int x, y = 1;
-	char line[120];
+	char line[160];
 	long len;
 	char tx[31], rx[31];
 	long ptx, prx;
 
 #define ONE_OVER_FDR_SPEED	66/(14*64*4*1000L)
+
+	attron(COLOR_PAIR(3));
+
+	snprintf(line, sizeof(line), "%-17s%6s%40s %-40s%6s", " NODE", "TX BW [MBPS]", "TX % OF 4X FDR PEAK    ", "    RX % OF 4X FDR PEAK", "RX BW [MBPS] ");
+
+	mvaddstr(y++, 0, line);
+
+	attroff(COLOR_PAIR(3));
 
 	for (i = 0; i < f->nnodes; ++i) {
 		ptx = MAX(0, MIN(100, lround(f->sorted[i]->tx_bw * ONE_OVER_FDR_SPEED * 100))) * 3 / 10;
@@ -42,12 +50,12 @@ void print(struct ibtop_fabric* f)
 
 		x   = 0;
 
-		len = snprintf(line, sizeof(line), "  %-16s", f->sorted[i]->name);
+		len = snprintf(line, sizeof(line), " %-16s", f->sorted[i]->name);
 
 		mvaddstr(y, x, line);
 		x += len;
 
-		len = snprintf(line, sizeof(line), "%10.2f Mbps", f->sorted[i]->rx_bw);
+		len = snprintf(line, sizeof(line), "  %10.2f", f->sorted[i]->rx_bw);
 
 		mvaddstr(y, x, line);
 		x += len;
@@ -85,7 +93,7 @@ void print(struct ibtop_fabric* f)
 			x += 1;
 		}
 
-		len = snprintf(line, sizeof(line), "%10.2f Mbps", f->sorted[i]->tx_bw);
+		len = snprintf(line, sizeof(line), "  %10.2f", f->sorted[i]->tx_bw);
 
 		mvaddstr(y, x, line);
 		x += len;
@@ -119,7 +127,7 @@ static int loop(struct ibtop_fabric* f,
 		timeout(0);
 		ch = getch();
 
-		if (ERR != ch)
+		if ('q' == ch)
 			break;
 
 		nanosleep(ts, 0);
@@ -151,11 +159,13 @@ int main(int argc, char **argv)
 
 	initscr();
 	start_color();
-
 	use_default_colors();
+
+	curs_set(0);
 
 	init_pair(1, COLOR_RED , -1);
 	init_pair(2, COLOR_BLUE, -1);
+	init_pair(3, COLOR_BLACK, COLOR_WHITE);
 
 	ret = loop(&f, srcport, &ts);
 
