@@ -1,5 +1,7 @@
 
 #include "common.h"
+#include "utils.h"
+#include "log.h"
 #include "fabric.h"
 
 
@@ -61,6 +63,10 @@ static void fill_sorted(struct ibtop_fabric *f)
 int ibtop_fabric_discover(struct ibtop_fabric *f)
 {
 	struct ibnd_config config = {0};
+	struct timeval t1, t2;
+
+	ibtop_debug(3, "Entering ibtop_fabric_discover().");
+	gettimeofday(&t1, NULL);
 
 	memset(f, 0, sizeof(struct ibtop_fabric));
 
@@ -84,9 +90,15 @@ int ibtop_fabric_discover(struct ibtop_fabric *f)
 
 	fill_sorted(f);
 
+	gettimeofday(&t2, NULL);
+	ibtop_log("Successfully discovered fabric with %d nodes in %.2f microseconds.",
+	          f->nnodes, timediff_msec(&t2, &t1));
+
 	return 0;
 
 fail:
+	ibtop_error("Failed to discover fabric.");
+
 	ibtop_fabric_destroy(f);
 	return 1;
 }
@@ -105,7 +117,8 @@ int ibtop_fabric_destroy(struct ibtop_fabric *f)
 
 static void update_perfcounters(struct ibtop_node *node,
                                 struct ibmad_port *srcport,
-                                const int timeout)
+                                const int timeout,
+                                int *failcount)
 {
 	unsigned char pc[1024];
 	ib_portid_t portid = {0};
@@ -138,6 +151,7 @@ static void update_perfcounters(struct ibtop_node *node,
 
 fail:
 	++node->fails;
+	++failcount;
 	return;
 }
 
@@ -146,9 +160,23 @@ int ibtop_fabric_update_perfcounters(struct ibtop_fabric *f,
                                      const int timeout)
 {
 	int i;
+	int fails;
+	struct timeval t1, t2;
 
-	for (i = 0; i < f->nnodes; ++i)
-		update_perfcounters(&f->nodes[i], srcport, timeout);
+	ibtop_debug(3, "Entering ibtop_fabric_update_perfcounters().");
+	gettimeofday(&t1, NULL);
+
+	for (i = 0, fails = 0; i < f->nnodes; ++i)
+		update_perfcounters(&f->nodes[i], srcport, timeout, &fails);
+
+	gettimeofday(&t2, NULL);
+
+	if (likely(0 == fails))
+		ibtop_log("Updated fabric performance counters without failures in %.2f microseconds.",
+		          timediff_msec(&t2, &t1));
+	else
+		ibtop_log("Updated fabric performance counters with %d failures in %.2f microseconds.",
+		          fails, timediff_msec(&t2, &t1));
 
 	return 0;
 }
@@ -205,8 +233,17 @@ int compare_bandwidth_descending(const void *x1, const void *x2)
 
 int ibtop_fabric_sort_by_bandwidth_descending(struct ibtop_fabric *f)
 {
+	struct timeval t1, t2;
+
+	ibtop_debug(3, "Entering ibtop_fabric_sort_by_bandwidth_descending().");
+	gettimeofday(&t1, NULL);
+
 	qsort(f->sorted, f->nnodes, sizeof(struct ibtop_node *),
 	      compare_bandwidth_descending);
+
+	gettimeofday(&t2, NULL);
+	ibtop_debug(3, "Sorted fabric nodes by bandwidth in %.2f microseconds.",
+	            timediff_msec(&t2, &t1));
 
 	return 0;
 }

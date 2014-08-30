@@ -1,6 +1,8 @@
 
 #include "common.h"
+#include "utils.h"
 #include "fabric.h"
+#include "log.h"
 
 #include <time.h>
 #include <math.h>
@@ -113,6 +115,8 @@ static int loop(struct ibtop_fabric* f,
 	int sort = 0;	/* Initialize with zero so that we sort the first
 	                 * time we execute the loop body. */
 
+	ibtop_log("Entering loop().");
+
 	do {
 		ibtop_fabric_update_perfcounters(f, srcport, 1000);
 		ibtop_fabric_compute_bandwidth(f, ts);
@@ -142,6 +146,10 @@ int main(int argc, char **argv)
 	struct ibtop_fabric f;
 	int ret;
 	struct timespec ts;
+
+	ibtop_log_init();
+
+	ibtop_debug(3, "Opening MAD port.");
 
 	srcport = open_mad_port();
 	if (unlikely(!srcport))
@@ -173,6 +181,8 @@ int main(int argc, char **argv)
 
 	ibtop_fabric_destroy(&f);
 	mad_rpc_close_port(srcport);
+
+	ibtop_log_fini();
 
 	return ret;
 }
