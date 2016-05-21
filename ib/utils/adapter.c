@@ -94,7 +94,7 @@ static SInt16 firstActivePortOfCA(const char *CA)
 			d = (struct DirectoryEntry *)(buf + pos);
 
 			pos += d->reclen;
-			/* Skip '.' and '..' 
+			/* Skip '.' and '..'
 			 */
 			if ((d->name[0] < 0x30) || (d->name[0] > 0x39)) {
 				continue;
@@ -136,7 +136,7 @@ SInt32 firstActivePort(AllocFunction alloc, void *allocUd, char **CA, SInt16 *po
 
 		for (pos = 0; pos < n;) {
 			d = (struct DirectoryEntry *)(buf + pos);
-			
+
 			pos += d->reclen;
 			/* The relevant entries are links to the PCIe device sysfs entry.
  			 */
@@ -159,7 +159,7 @@ SInt32 firstActivePort(AllocFunction alloc, void *allocUd, char **CA, SInt16 *po
 
 		if (LIKELY(*CA)) {
 			break;
-		}		
+		}
 	}
 
 	close(fd);

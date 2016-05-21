@@ -4,7 +4,7 @@
 
 #include "common.h"
 
-struct LinearForwardingTableRecord
+struct _LinearForwardingTableRecord
 {
 	UInt16	lid;
 	UInt16	block;
@@ -12,7 +12,7 @@ struct LinearForwardingTableRecord
 	UInt8	lft[64];
 } PACKED;
 
-struct NodeRecord
+struct _NodeRecord
 {
 	UInt16	lid;
 	UInt16	resv;

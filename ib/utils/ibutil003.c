@@ -227,7 +227,7 @@ static void printPort(struct Port *port)
 	       port->counter_IB_PC_ERR_EXCESS_OVR_F,
 	       port->counter_IB_PC_VL15_DROPPED_F,
 	       port->counter_IB_PC_XMT_WAIT_F);
-	printf("%16" PRIu64 " " "%16" PRIu64 " " "%16" PRIu64 " " "%16" PRIu64 "\n", 
+	printf("%16" PRIu64 " " "%16" PRIu64 " " "%16" PRIu64 " " "%16" PRIu64 "\n",
 	       port->counter_IB_PC_EXT_XMT_BYTES_F,
 	       port->counter_IB_PC_EXT_XMT_PKTS_F,
 	       port->counter_IB_PC_EXT_RCV_BYTES_F,

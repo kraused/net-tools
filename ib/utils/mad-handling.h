@@ -3,7 +3,7 @@
 #define IB_UTILS_MAD_HANDLING_H_INCLUDED 1
 
 /* This file is explicitly not named "mad.h" to avoid conflicts with the
- * libibmad header file. 
+ * libibmad header file.
  */
 
 #include "common.h"
