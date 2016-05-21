@@ -1,5 +1,5 @@
 
-/* ibutil001: Query first usable (HCA, port) combination
+/* ibutil001: Query first usable (HCA, port) combination.
  */
 
 #include <stdio.h>

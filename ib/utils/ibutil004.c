@@ -1,5 +1,5 @@
 
-/* ibutil002: Query the LFT of a switch.
+/* ibutil004: Query node records.
  */
 
 #include "common.h"
@@ -9,8 +9,8 @@
 
 static void fillMAD(char *umad, SInt64 len, UInt16 smLid, UInt16 destLid)
 {
-	UInt64 mask;
-	struct LinearForwardingTableRecord lft;
+	UInt64 mask = 0;
+	struct NodeRecord nr;
 
 	memset(umad, 0, len);
 	umad_set_addr(umad, smLid, MAD_QP1, MAD_DEFAULT_SL, IB_DEFAULT_QP1_QKEY);
@@ -21,24 +21,24 @@ static void fillMAD(char *umad, SInt64 len, UInt16 smLid, UInt16 destLid)
 	mad_set_field  (umad_get_mad(umad), 0, IB_MAD_MGMTCLASS_F, IB_SA_CLASS);
 	mad_set_field  (umad_get_mad(umad), 0, IB_MAD_BASEVER_F, 1);
 	mad_set_field64(umad_get_mad(umad), 0, IB_MAD_TRID_F, 0x1);
-	mad_set_field  (umad_get_mad(umad), 0, IB_MAD_ATTRID_F, IB_SA_ATTR_LFTRECORD);
+	mad_set_field  (umad_get_mad(umad), 0, IB_MAD_ATTRID_F, IB_SA_ATTR_NODERECORD);
 
 	if (destLid > 0) {
-		memset(&lft, 0, sizeof(lft));
-		lft.lid = hton16(destLid);
+		memset(&nr, 0, sizeof(nr));
+		nr.lid = hton16(destLid);
 
 		mask = 0x1;	/* lid */
-		memcpy((char* )umad_get_mad(umad) + IB_SA_DATA_OFFS, &lft, sizeof(lft));
-	}	
+		memcpy((char* )umad_get_mad(umad) + IB_SA_DATA_OFFS, &nr, sizeof(nr));
+	}
 	mad_set_field64(umad_get_mad(umad), 0, IB_SA_COMPMASK_F, mask);
 }
 
-static void printLinearForwardingTable(char *buf, SInt64 len)
+static void printNodeRecords(char *buf, SInt64 len)
 {
 	SInt32 status;
 	SInt64 n;
-	SInt32 i, j, offset;
-	struct LinearForwardingTableRecord *p;
+	SInt32 i, offset;
+	struct NodeRecord *p;
 
 	status = mad_get_field(umad_get_mad(buf), 0, IB_MAD_STATUS_F);
 	if (UNLIKELY(0 != status)) {
@@ -51,10 +51,9 @@ static void printLinearForwardingTable(char *buf, SInt64 len)
 	n      = (len - IB_SA_DATA_OFFS)/(offset << 3);	/* offset is in 8 byte units */
 
 	for (i = 0 ; i < n; ++i) {
-		p = (struct LinearForwardingTableRecord *)(umad_get_mad(buf) + IB_SA_DATA_OFFS + i*(offset << 3));
+		p = (struct NodeRecord *)(umad_get_mad(buf) + IB_SA_DATA_OFFS + i*(offset << 3));
 
-		for (j = 0; j < 64; ++j)
-			fprintf(stdout, "%4d %4d %2d\n", (int )ntoh16(p->lid), (int )(64*ntoh16(p->block) + j), (int )p->lft[j]);
+		fprintf(stdout, "%d %d %d 0x%" PRIx64 "\n", ntoh16(p->lid), p->nodeType, p->numPorts, ntoh64(p->portGuid));
 	}
 }
 
@@ -71,11 +70,14 @@ int main(int argc, char **argv)
 	UInt16 smLid, destLid;
 	const SInt32 timeout = 1000;
 
-	if (UNLIKELY(2 != argc)) {
-		FATAL("usage: ibutil002.exe <lid>");
+	if (UNLIKELY(argc > 2)) {
+		FATAL("usage: ibutil002.exe [<lid>]");
 	}
 
-	destLid = strtol(argv[1], NULL, 10);
+	destLid = 0;
+	if (2 == argc) {
+		destLid = strtol(argv[1], NULL, 10);
+	}
 
 	err = firstActivePort(defaultMemoryAlloc, NULL, &CA, &port, &lid);
 	if (UNLIKELY(err < 0)) {
@@ -108,7 +110,7 @@ int main(int argc, char **argv)
 	libibumad_Send_MAD(fd, agent, umad, sizeof(umad), timeout, 0);
 	libibumad_Recv_MAD(defaultMemoryAlloc, NULL, fd, &buf, &len, timeout);
 
-	printLinearForwardingTable(buf, len);
+	printNodeRecords(buf, len);
 
 	umad_close_port(fd);
 	umad_done();

@@ -21,7 +21,7 @@ void *defaultMemoryAlloc(void *UNUSED ud, void *ptr, UInt64 osize, UInt64 nsize)
 
 	qtr = realloc(ptr, nsize);
 	if (UNLIKELY(!qtr)) {
-//		fatal("Failed to allocate %" PRIu64 "bytes", nsize);
+		FATAL("Failed to allocate %" PRIu64 "bytes", nsize);
 	}
 
 	return qtr;

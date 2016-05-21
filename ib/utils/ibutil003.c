@@ -98,30 +98,7 @@ static inline double timediff(const struct timeval *x, const struct timeval *y)
 	return 1E-3*((x->tv_sec - y->tv_sec)*1000000L + (x->tv_usec - y->tv_usec));
 }
 
-void *memoryAlloc(void *ptr, UInt64 osize, UInt64 nsize)
-{
-	if (0 == nsize) {
-		if (ptr) {
-			free(ptr);
-			return NULL;
-		}
-	} 
-	else {
-		if (0 == osize) {
-			return malloc(nsize);
-		}
-		else if (osize >= nsize) {
-			return ptr;
-		}
-		else {
-			return realloc(ptr, nsize);
-		}
-	}
-
-	return NULL;
-}
-
-void openSourcePorts(struct Fabric *fabric)
+static void openSourcePorts(struct Fabric *fabric)
 {
 	int classes[1] = {IB_PERFORMANCE_CLASS};
 	SInt32 i, n;
@@ -136,7 +113,7 @@ void openSourcePorts(struct Fabric *fabric)
 	}
 }
 
-void discoverFabric(struct Fabric *fabric)
+static void discoverFabric(AllocFunction alloc, void *allocUd, struct Fabric *fabric)
 {
 	struct ibnd_fabric *f;
 	struct ibnd_config config = {0};
@@ -155,7 +132,7 @@ void discoverFabric(struct Fabric *fabric)
 		++fabric->nnodes;
 	}
 
-	fabric->nodes = memoryAlloc(NULL, 0, fabric->nnodes*sizeof(struct Node));
+	fabric->nodes = alloc(allocUd, NULL, 0, fabric->nnodes*sizeof(struct Node));
 
 	i = 0;
 	for (node = f->nodes; node; node = node->next) {
@@ -165,7 +142,7 @@ void discoverFabric(struct Fabric *fabric)
 		fabric->nodes[i].nports = node->numports;
 
 		for (j = 1; j < (node->numports + 1); ++j) {
-			fabric->nodes[i].ports[j] = memoryAlloc(NULL, 0, sizeof(struct Port));
+			fabric->nodes[i].ports[j] = alloc(allocUd, NULL, 0, sizeof(struct Port));
 			memset(fabric->nodes[i].ports[j], 0, sizeof(struct Port));
 
 			fabric->nodes[i].ports[j]->guid = node->guid;
@@ -177,7 +154,7 @@ void discoverFabric(struct Fabric *fabric)
 	}
 }
 
-void queryPortCounters(struct ibmad_port *sourcePort, struct Port *port)
+static void queryPortCounters(struct ibmad_port *sourcePort, struct Port *port)
 {
 	unsigned char pc[1024];
 	struct portid portId = { .lid = port->lid };
@@ -186,7 +163,7 @@ void queryPortCounters(struct ibmad_port *sourcePort, struct Port *port)
 #define TIMEOUT	1000
 
 	memset(pc, 0, sizeof(pc));
-	p = pma_query_via(pc, &portId, port->port, TIMEOUT, IB_GSI_PORT_COUNTERS    , sourcePort);
+	p = pma_query_via(pc, &portId, port->port, TIMEOUT, IB_GSI_PORT_COUNTERS, sourcePort);
 
 	if (!p) {
 		fprintf(stderr, "pma_query_via() failed.\n");
@@ -227,7 +204,7 @@ void queryPortCounters(struct ibmad_port *sourcePort, struct Port *port)
 	COPY64(IB_PC_EXT_RCV_PKTS_F, 1);
 }
 
-void printPort(struct Port *port)
+static void printPort(struct Port *port)
 {
 	printf("0x%16" PRIx64 " " "%8" PRIu64 " " "%2d" " ", port->guid, port->lid, port->port);
 	printf("%8" PRIu32 " " "%8" PRIu32 " " "%8" PRIu32 " " "%8" PRIu32 " "
@@ -257,7 +234,7 @@ void printPort(struct Port *port)
 	       port->counter_IB_PC_EXT_RCV_PKTS_F);
 }
 
-void queryAllCounters(struct Fabric *fabric)
+static void queryAllCounters(struct Fabric *fabric)
 {
 	struct timeval t1, t2;
 	SInt64 i;
@@ -276,7 +253,7 @@ void queryAllCounters(struct Fabric *fabric)
 	fprintf(stderr, "Query took %.3f milliseconds\n", timediff(&t2, &t1));
 }
 
-void printAllCounters(struct Fabric *fabric)
+static void printAllCounters(struct Fabric *fabric)
 {
 	SInt64 i;
 	SInt32 j;
@@ -293,7 +270,7 @@ int main(int argc, char **argv)
 	struct Fabric fabric;
 
 	openSourcePorts(&fabric);
-	discoverFabric (&fabric);
+	discoverFabric (defaultMemoryAlloc, NULL, &fabric);
 
 	queryAllCounters(&fabric);
 	printAllCounters(&fabric);

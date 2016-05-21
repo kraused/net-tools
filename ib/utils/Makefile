@@ -11,13 +11,13 @@ Q = @
 
 default: all
 
-all: libcommon.a ibutil001.exe ibutil002.exe ibutil003.exe
+all: libcommon.a ibutil001.exe ibutil002.exe ibutil003.exe ibutil004.exe
 
 ibutil%.exe: ibutil%.o libcommon.a
 	$(Q)$(LD) $(LDFLAGS) -o $@ $< $(LIBS) -L$(PWD) -lcommon
 	@echo "LD $@"
 
-libcommon.a: common.o adapter.o error.o
+libcommon.a: common.o adapter.o mad-handling.o error.o
 	$(AR) rcs $@ $^
 	@echo "AR $@"
 
