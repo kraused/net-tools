@@ -6,6 +6,8 @@
  */
 
 #include "common.h"
+#include "adapter.h"
+#include "mad-handling.h"
 
 #include <sys/time.h>
 
@@ -61,6 +63,7 @@ struct Port
 	UInt64		guid;
 	UInt64		lid;
 	SInt16		port;
+	UInt64		trId;
 
 	UInt32		counter_IB_PC_PORT_SELECT_F;
 	UInt32		counter_IB_PC_COUNTER_SELECT_F;
@@ -87,7 +90,12 @@ struct Port
 
 struct Fabric
 {
-	struct ibmad_port	*sourcePorts[MAX_THREADS];
+	struct {
+		char		*CA;
+		SInt16		port;
+		int		fds[MAX_THREADS];
+		int		agents[MAX_THREADS];
+	}			source;
 
 	SInt64			nnodes;
 	struct Node		*nodes;
@@ -100,16 +108,34 @@ static inline double timediff(const struct timeval *x, const struct timeval *y)
 
 static void openSourcePorts(struct Fabric *fabric)
 {
-	int classes[1] = {IB_PERFORMANCE_CLASS};
+	SInt32 err;
+	int    fd;
+	int    agent;
+	UInt16 lid;
 	SInt32 i, n;
+
+	err = firstActivePort(defaultMemoryAlloc, NULL, &fabric->source.CA, &fabric->source.port, &lid);
+	if (UNLIKELY(err < 0)) {
+		ERROR("firstActivePort() failed");
+	}
+
+#define MGMT_VERSION	1
+#define RMPP_VERSION	0
 
 	n = maxThreads();
 	for (i = 0; i < n; ++i) {
-		fabric->sourcePorts[i] = mad_rpc_open_port(NULL, 0, classes,
-		                                           sizeof(classes)/sizeof(classes[0]));
-		if (UNLIKELY(!fabric->sourcePorts[i])) {
-			exit(1);
+		fd = umad_open_port(fabric->source.CA, fabric->source.port);
+		if (UNLIKELY(fd < 0)) {
+			FATAL("umad_open_port() failed with error %d: %s", -fd, strerror(-fd));
 		}
+
+		agent = umad_register(fd, IB_SA_CLASS, MGMT_VERSION, RMPP_VERSION, NULL);
+		if (UNLIKELY(agent < 0)) {
+			FATAL("umad_register() failed with error %d: %s", -agent, strerror(-agent));
+		}
+
+		fabric->source.fds[i]    = fd;
+		fabric->source.agents[i] = agent;
 	}
 }
 
@@ -119,7 +145,7 @@ static void discoverFabric(AllocFunction alloc, void *allocUd, struct Fabric *fa
 	struct ibnd_config config = {0};
 	struct ibnd_node *node;
 	struct timeval t1, t2;
-	SInt32 i, j;
+	SInt32 i, j, k;
 
 	gettimeofday(&t1, NULL);
 	f = ibnd_discover_fabric(NULL, 0, NULL, &config);
@@ -135,6 +161,7 @@ static void discoverFabric(AllocFunction alloc, void *allocUd, struct Fabric *fa
 	fabric->nodes = alloc(allocUd, NULL, 0, fabric->nnodes*sizeof(struct Node));
 
 	i = 0;
+	k = 0;
 	for (node = f->nodes; node; node = node->next) {
 		memset(&fabric->nodes[i], 0, sizeof(struct Port));
 
@@ -148,30 +175,45 @@ static void discoverFabric(AllocFunction alloc, void *allocUd, struct Fabric *fa
 			fabric->nodes[i].ports[j]->guid = node->guid;
 			fabric->nodes[i].ports[j]->lid  = node->ports[j]->base_lid;
 			fabric->nodes[i].ports[j]->port = j;
+			fabric->nodes[i].ports[j]->trId = 256*(k++);
 		}
 
 		++i;
 	}
 }
 
-static void queryPortCounters(struct ibmad_port *sourcePort, struct Port *port)
+static void queryPortCounters(int fd, int agent, struct Port *port)
 {
-	unsigned char pc[1024];
-	struct portid portId = { .lid = port->lid };
-	void *p;
+	UInt8  umad[256];
+	UInt8  *buf = NULL;
+	SInt64 len;
+	SInt32 status;
 
-#define TIMEOUT	1000
+	const SInt32 timeout = 1000;
 
-	memset(pc, 0, sizeof(pc));
-	p = pma_query_via(pc, &portId, port->port, TIMEOUT, IB_GSI_PORT_COUNTERS, sourcePort);
+	memset(umad, 0, sizeof(umad));
+	umad_set_addr(umad, port->lid, MAD_QP1, MAD_DEFAULT_SL, IB_DEFAULT_QP1_QKEY);
+	/* Ignore GRH */
 
-	if (!p) {
-		fprintf(stderr, "pma_query_via() failed.\n");
-		exit(1);
+	mad_set_field  (umad_get_mad(umad), 0, IB_MAD_METHOD_F, IB_MAD_METHOD_GET);
+	mad_set_field  (umad_get_mad(umad), 0, IB_MAD_CLASSVER_F, 1);
+	mad_set_field  (umad_get_mad(umad), 0, IB_MAD_MGMTCLASS_F, IB_PERFORMANCE_CLASS);
+	mad_set_field  (umad_get_mad(umad), 0, IB_MAD_BASEVER_F, 1);
+	mad_set_field64(umad_get_mad(umad), 0, IB_MAD_TRID_F, (port->trId++));
+	mad_set_field  (umad_get_mad(umad), 0, IB_MAD_ATTRID_F, IB_GSI_PORT_COUNTERS);
+
+	mad_set_field  ((UInt8 *)umad_get_mad(umad) + IB_PC_DATA_OFFS, 0, IB_PC_PORT_SELECT_F, port->port);
+
+	libibumad_Send_MAD(fd, agent, umad, sizeof(umad), timeout, 0);
+	libibumad_Recv_MAD(defaultMemoryAlloc, NULL, fd, &buf, &len, timeout);
+
+	status = mad_get_field(umad_get_mad(buf), 0, IB_MAD_STATUS_F);
+	if (UNLIKELY(0 != status)) {
+		FATAL("status is %d", status);
 	}
 
-#define COPY32(COUNTER, MUL)	port->counter_ ## COUNTER = (mad_get_field  (pc, 0, COUNTER) * MUL)
-#define COPY64(COUNTER, MUL)	port->counter_ ## COUNTER = (mad_get_field64(pc, 0, COUNTER) * MUL)
+#define COPY32(COUNTER, MUL)	port->counter_ ## COUNTER = (mad_get_field  (umad_get_mad(buf) + IB_PC_DATA_OFFS, 0, COUNTER) * MUL)
+#define COPY64(COUNTER, MUL)	port->counter_ ## COUNTER = (mad_get_field64(umad_get_mad(buf) + IB_PC_DATA_OFFS, 0, COUNTER) * MUL)
 
 	COPY32(IB_PC_PORT_SELECT_F, 1);
 	COPY32(IB_PC_COUNTER_SELECT_F, 1);
@@ -190,18 +232,35 @@ static void queryPortCounters(struct ibmad_port *sourcePort, struct Port *port)
 	COPY32(IB_PC_VL15_DROPPED_F, 1);
 	COPY32(IB_PC_XMT_WAIT_F, 1);
 
-	memset(pc, 0, sizeof(pc));
-	p = pma_query_via(pc, &portId, port->port, TIMEOUT, IB_GSI_PORT_COUNTERS_EXT, sourcePort);
+	buf = defaultMemoryAlloc(NULL, buf, len, 0);
 
-	if (!p) {
-		fprintf(stderr, "pma_query_via() failed.\n");
-		exit(1);
+	memset(umad, 0, sizeof(umad));
+	umad_set_addr(umad, port->lid, MAD_QP1, MAD_DEFAULT_SL, IB_DEFAULT_QP1_QKEY);
+	/* Ignore GRH */
+
+	mad_set_field  (umad_get_mad(umad), 0, IB_MAD_METHOD_F, IB_MAD_METHOD_GET);
+	mad_set_field  (umad_get_mad(umad), 0, IB_MAD_CLASSVER_F, 1);
+	mad_set_field  (umad_get_mad(umad), 0, IB_MAD_MGMTCLASS_F, IB_PERFORMANCE_CLASS);
+	mad_set_field  (umad_get_mad(umad), 0, IB_MAD_BASEVER_F, 1);
+	mad_set_field64(umad_get_mad(umad), 0, IB_MAD_TRID_F, (port->trId++));
+	mad_set_field  (umad_get_mad(umad), 0, IB_MAD_ATTRID_F, IB_GSI_PORT_COUNTERS_EXT);
+
+	mad_set_field  ((UInt8 *)umad_get_mad(umad) + IB_PC_DATA_OFFS, 0, IB_PC_PORT_SELECT_F, port->port);
+
+	libibumad_Send_MAD(fd, agent, umad, sizeof(umad), timeout, 0);
+	libibumad_Recv_MAD(defaultMemoryAlloc, NULL, fd, &buf, &len, timeout);
+
+	status = mad_get_field(umad_get_mad(buf), 0, IB_MAD_STATUS_F);
+	if (UNLIKELY(0 != status)) {
+		FATAL("status is %d", status);
 	}
 
 	COPY64(IB_PC_EXT_XMT_BYTES_F, 32);
 	COPY64(IB_PC_EXT_XMT_PKTS_F, 1);
 	COPY64(IB_PC_EXT_RCV_BYTES_F, 32);
 	COPY64(IB_PC_EXT_RCV_PKTS_F, 1);
+
+	buf = defaultMemoryAlloc(NULL, buf, len, 0);
 }
 
 static void printPort(struct Port *port)
@@ -245,7 +304,9 @@ static void queryAllCounters(struct Fabric *fabric)
 	OMP("omp parallel for")
 	for (i = 0; i < fabric->nnodes; ++i) {
 		for (j = 1; j < (fabric->nodes[i].nports + 1); ++j) {
-			queryPortCounters(fabric->sourcePorts[threadId()], fabric->nodes[i].ports[j]);
+			queryPortCounters(fabric->source.fds[threadId()],
+			                  fabric->source.agents[threadId()],
+			                  fabric->nodes[i].ports[j]);
 		}
 	}
 
@@ -269,11 +330,15 @@ int main(int argc, char **argv)
 {
 	struct Fabric fabric;
 
+	umad_init();
+
 	openSourcePorts(&fabric);
 	discoverFabric (defaultMemoryAlloc, NULL, &fabric);
 
 	queryAllCounters(&fabric);
 	printAllCounters(&fabric);
+
+	umad_done();
 
 	return 0;
 }
