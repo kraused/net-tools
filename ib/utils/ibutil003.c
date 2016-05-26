@@ -20,12 +20,12 @@
 #define OMP(string)	_Pragma(string)
 #define	MAX_THREADS	128
 
-inline SInt32 maxThreads()
+static inline SInt32 maxThreads()
 {
 	return omp_get_max_threads();
 }
 
-inline SInt32 threadId()
+static inline SInt32 threadId()
 {
 	return omp_get_thread_num();
 }
@@ -35,12 +35,12 @@ inline SInt32 threadId()
 #define OMP(string)
 #define MAX_THREADS	1
 
-inline SInt32 maxThreads()
+static inline SInt32 maxThreads()
 {
 	return 1;
 }
 
-inline SInt32 threadId()
+static inline SInt32 threadId()
 {
 	return 0;
 }

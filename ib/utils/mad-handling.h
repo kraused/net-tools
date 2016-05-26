@@ -23,11 +23,11 @@ void libibumad_Enable_Debugging();
 
 /* Send a MAD using libibumad. Errors are fatal.
  */
-void libibumad_Send_MAD(int fd, int agent, char *umad, UInt64 len, SInt32 timeout, SInt32 nretries);
+void libibumad_Send_MAD(int fd, int agent, UInt8 *umad, UInt64 len, SInt32 timeout, SInt32 nretries);
 
 /* Recv a response via libibumad. Errors are fatal.
  */
-void libibumad_Recv_MAD(AllocFunction alloc, void *allocUd, int fd, char **buf, SInt64 *len, SInt32 timeout);
+void libibumad_Recv_MAD(AllocFunction alloc, void *allocUd, int fd, UInt8 **buf, SInt64 *len, SInt32 timeout);
 
 #endif
 

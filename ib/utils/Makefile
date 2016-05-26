@@ -1,9 +1,9 @@
 
 CC       = /usr/bin/gcc
 CPPFLAGS = -I/usr/include/infiniband -I. -D_GNU_SOURCE -DPARALLEL=1
-CCFLAGS  = -Wall -fPIC -O0 -ggdb -fopenmp
+CCFLAGS  = -std=gnu99 -Wall -fPIC -O0 -ggdb -fopenmp
 LD       = /usr/bin/gcc
-LDFLAGS  = -Wall -fPIC -O0 -ggdb -fopenmp
+LDFLAGS  = -std=gnu99 -Wall -fPIC -O0 -ggdb -fopenmp
 LIBS     = -libmad -libumad -libnetdisc -libverbs
 AR       = /usr/bin/ar
 
@@ -11,7 +11,7 @@ Q = @
 
 default: all
 
-all: libcommon.a ibutil001.exe ibutil002.exe ibutil003.exe ibutil004.exe ibutilpy.so
+all: libcommon.a ibutil001.exe ibutil002.exe ibutil003.exe ibutil004.exe ibutil006.exe ibutilpy.so
 
 ibutil%.exe: ibutil%.o libcommon.a
 	$(Q)$(LD) $(LDFLAGS) -o $@ $< $(LIBS) -L$(PWD) -lcommon

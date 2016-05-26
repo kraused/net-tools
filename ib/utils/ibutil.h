@@ -35,5 +35,10 @@ void getNodeRecords(AllocFunction alloc, void *allocUd, char *CA, SInt16 port,
                     SInt32 numLIDs, const UInt16 *LIDs,
                     SInt32 *numNRs, struct NodeRecord **NRs);
 
+/* Convert GUIDs to LIDs
+ */
+void getLIDsFromGUIDs(AllocFunction alloc, void *allocUd, char *CA, SInt16 port,
+                      SInt32 numGUIDs, const UInt64 *GUIDs, UInt16 **LIDs);
+
 #endif
 

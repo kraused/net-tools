@@ -16,6 +16,8 @@ static PyObject *pyString_nodeGuid;
 static PyObject *pyString_portGuid;
 static PyObject *pyString_info;
 
+/* Convert a Python list of integers to an array of UInt16.
+ */
 static void convertUInt16List(AllocFunction alloc, void *allocUd,
                               PyObject *pyList, SInt32 *len, UInt16 **list)
 {
@@ -46,6 +48,32 @@ static void convertUInt16List(AllocFunction alloc, void *allocUd,
 	}
 }
 
+/* Convert a Python list of strings to an array of UInt64.
+ */
+static void convertUInt64List(AllocFunction alloc, void *allocUd,
+                              PyObject *pyList, SInt32 *len, UInt64 **list)
+{
+	PyObject *item;
+	SInt32 i, n;
+
+	n = PyList_Size(pyList);
+
+	*len  = n;
+	*list = alloc(allocUd, NULL, 0, (*len)*sizeof(UInt64));
+
+	for (i = 0; i < n; ++i) {
+		item = PyList_GetItem(pyList, i);
+		if (UNLIKELY(!item)) {
+			FATAL("Failed to get %dth item", i);
+		}
+		if (UNLIKELY(!PyString_Check(item))) {
+			FATAL("%dth item is not a string", i);
+		}
+
+		(*list)[i] = (UInt64 )strtoull(PyString_AsString(item), NULL, 16);
+	}
+}
+
 static PyObject *convertLinearForwardingTable(struct LinearForwardingTable *LFT)
 {
 	PyObject *d;
@@ -65,21 +93,22 @@ static PyObject *convertLinearForwardingTable(struct LinearForwardingTable *LFT)
 		}
 	}
 
-#define SET_PYDICT_ITEM_FROM_INT(D, KEY, VAL)				\
+#define SET_PYDICT_ITEM(D, KEY, VAL)					\
 	do {								\
-		err = PyDict_SetItem(D, KEY, PyInt_FromLong(VAL));	\
+		err = PyDict_SetItem(D, KEY, VAL);			\
 		if (UNLIKELY(err)) {					\
 			FATAL("PyDict_SetItem() failed");		\
 		}							\
+	} while(0)
+#define SET_PYDICT_ITEM_FROM_INT(D, KEY, VAL)				\
+	do {								\
+		SET_PYDICT_ITEM(D, KEY, PyInt_FromLong(VAL));		\
 	} while(0)
 #define SET_PYDICT_ITEM_FROM_STR(D, KEY, VAL)				\
 	do {								\
-		err = PyDict_SetItem(D, KEY, PyString_FromString(VAL));	\
-		if (UNLIKELY(err)) {					\
-			FATAL("PyDict_SetItem() failed");		\
-		}							\
+		SET_PYDICT_ITEM(D, KEY, PyString_FromString(VAL));	\
 	} while(0)
-	/* We do not use PyString_FromFormat() here since this function only supports
+	/* We do not use PyString_FromFormat() here since this function only support
 	 * a subset of the libc format characters.
  	 */
 #define SET_PYDICT_ITEM_FROM_STRFORMAT(D, KEY, FMT, VAL)		\
@@ -91,10 +120,7 @@ static PyObject *convertLinearForwardingTable(struct LinearForwardingTable *LFT)
 
 
 	SET_PYDICT_ITEM_FROM_INT(d, pyString_lid, LFT->lid);
-	err = PyDict_SetItem(d, pyString_lft, list);
-	if (UNLIKELY(err)) {
-		FATAL("PyDict_SetItem() failed");
-	}
+	SET_PYDICT_ITEM(d, pyString_lft, list);
 
 	return d;
 }
@@ -227,10 +253,55 @@ static PyObject* Get_LinearForwardingTable(PyObject *self, PyObject *args)
 	return pyListLFTs;
 }
 
+static PyObject* Get_LIDsFromGUIDs(PyObject *self, PyObject *args)
+{
+	PyObject *pyListGUIDs;
+	char   *CA;
+	SInt16 port;
+	UInt16 lid;
+	SInt32 err;
+	SInt32 numGUIDs;
+	UInt64 *GUIDs;
+	UInt16 *LIDs;
+	SInt32 i;
+	PyObject *pyListLIDs;
+
+	err = firstActivePort(defaultMemoryAlloc, NULL, &CA, &port, &lid);
+	if (UNLIKELY(err < 0)) {
+		ERROR("firstActivePort() failed");
+		return Py_None;
+	}
+
+	if (!PyArg_ParseTuple(args, "O", &pyListGUIDs)) {
+		return Py_None;
+	}
+
+	Py_XINCREF(pyListGUIDs);
+
+	convertUInt64List(defaultMemoryAlloc, NULL, pyListGUIDs, &numGUIDs, &GUIDs);
+
+	Py_XDECREF(pyListGUIDs);
+
+	getLIDsFromGUIDs(defaultMemoryAlloc, NULL, CA, port, numGUIDs, GUIDs, &LIDs);
+
+	pyListLIDs = PyList_New(numGUIDs);
+	if (UNLIKELY(!pyListLIDs)) {
+		FATAL("PyList_New() returned NULL");
+	}
+
+	for (i = 0; i < numGUIDs; ++i) {
+		err = PyList_SetItem(pyListLIDs, i, PyInt_FromLong(LIDs[i]));
+	}
+	defaultMemoryAlloc(NULL, LIDs, numGUIDs*sizeof(UInt16), 0);
+
+	return pyListLIDs;
+}
+
 static PyMethodDef methods[] =
 {
 	{"Get_NodeRecord", Get_NodeRecord, METH_VARARGS, "Get node records"},
 	{"Get_LinearForwardingTable", Get_LinearForwardingTable, METH_VARARGS, "Get linear forwarding tables"},
+	{"Get_LIDsFromGUIDs", Get_LIDsFromGUIDs, METH_VARARGS, "Get LIDs from GUIDs"},
 	{NULL, NULL, 0, NULL}
 };
 

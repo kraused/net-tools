@@ -8,7 +8,7 @@ void libibumad_Enable_Debugging()
 	umad_debug(5);
 }
 
-void libibumad_Send_MAD(int fd, int agent, char *umad, UInt64 len, SInt32 timeout, SInt32 nretries)
+void libibumad_Send_MAD(int fd, int agent, UInt8 *umad, UInt64 len, SInt32 timeout, SInt32 nretries)
 {
 	SInt32 err;
 
@@ -18,12 +18,15 @@ void libibumad_Send_MAD(int fd, int agent, char *umad, UInt64 len, SInt32 timeou
 	}
 }
 
-void libibumad_Recv_MAD(AllocFunction alloc, void *allocUd, int fd, char **buf, SInt64 *len, SInt32 timeout)
+void libibumad_Recv_MAD(AllocFunction alloc, void *allocUd, int fd, UInt8 **buf, SInt64 *len, SInt32 timeout)
 {
 	SInt32 err, length;
 
 	*len = 1024;
 	*buf = alloc(allocUd, NULL, 0, (*len));
+	if (UNLIKELY(!(*buf))) {
+		FATAL("alloc() returned NULL.");
+	}
 	memset((*buf), 0, (*len));
 
 	do {
@@ -36,6 +39,9 @@ void libibumad_Recv_MAD(AllocFunction alloc, void *allocUd, int fd, char **buf, 
 
 		if (ENOSPC == (-err)) {
 			*buf = alloc(allocUd, (*buf), (*len), length + umad_size());
+			if (UNLIKELY(!(*buf))) {
+				FATAL("alloc() returned NULL.");
+			}
 			*len = length + umad_size();
 			memset((*buf), 0, (*len));
 		} else {

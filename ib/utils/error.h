@@ -10,7 +10,7 @@ void errorWarn (const char *file, const char *func, long line, const char *fmt, 
 void errorLog  (const char *file, const char *func, long line, const char *fmt, ...);
 void errorDebug(const char *file, const char *func, long line, const char *fmt, ...);
 
-/* Convenience wrappers around XEnv_Error_X() functions
+/* Convenience wrappers around errorX() functions
  */
 #define FATAL(FMT, ...)	errorFatal(__FILE__, __func__, __LINE__, FMT, ## __VA_ARGS__)
 #define ERROR(FMT, ...)	errorError(__FILE__, __func__, __LINE__, FMT, ## __VA_ARGS__)
