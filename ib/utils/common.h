@@ -35,6 +35,19 @@ static inline UInt16 hton16(UInt16 x)
 	return ntoh16(x);
 }
 
+static inline UInt32 ntoh32(UInt32 x)
+{
+	return ((x & 0x000000FFULL) << 24) |
+	       ((x & 0x0000FF00ULL) <<  8) |
+	       ((x & 0x00FF0000ULL) >>  8) |
+	       ((x & 0xFF000000ULL) >> 24);
+}
+
+static inline UInt32 hton32(UInt32 x)
+{
+	return ntoh32(x);
+}
+
 static inline UInt64 ntoh64(UInt64 x)
 {
 	return ((x & 0x00000000000000FFULL) << 56) |
