@@ -84,6 +84,10 @@ SInt32 portLocalIdentifier(const char *CA, SInt16 port);
  */
 SInt32 subnetManagerLocalIdentifier(const char *CA, SInt16 port);
 
+/* Query a GID of the local port.
+ */
+SInt32 portGlobalIdentifier(const char *CA, SInt16 port, SInt16 whichGid, UInt8 *gid);
+
 #include "error.h"
 
 #endif
