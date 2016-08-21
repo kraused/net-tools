@@ -11,7 +11,7 @@ Q = @
 
 default: all
 
-all: libcommon.a ibutil001.exe ibutil002.exe ibutil003.exe ibutil004.exe ibutil006.exe ibutilpy.so
+all: libcommon.a ibutil001.exe ibutil002.exe ibutil003.exe ibutil004.exe ibutil006.exe ibutil007.exe ibutil008.exe ibutil009.exe ibutilpy.so
 
 ibutil%.exe: ibutil%.o libcommon.a
 	$(Q)$(LD) $(LDFLAGS) -o $@ $< $(LIBS) -L$(PWD) -lcommon
